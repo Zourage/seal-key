@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- Must be the first element in <head>: a meta CSP only governs markup
+     that follows it in the document, so anything placed before it would be
+     unprotected. See tests/test_seal_page_is_local.py for what each
+     directive here is verified to enforce (and, for connect-src/
+     form-action/default-src, what it structurally cannot enforce: a meta
+     CSP cannot stop top-level navigation -- there is no shipped
+     navigate-to directive in any browser). img-src is scoped to data: only
+     -- narrow enough to permit the inline data: favicon below (see that
+     comment) without opening any path to a network image load; every
+     other resource class stays governed by default-src 'none'. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'sha256-nSFcg98axajTiRBiucpME6xVFwKxWfvQ1GL6S+0gvXg='; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Favicon: this data: URL gives the browser a real (empty) icon to use so
+     the tab does not sit in a load/error state waiting on one, and costs no
+     network request of its own because data: is inline, not a network
+     origin -- the img-src data: directive above is what lets the browser
+     load it at all (default-src 'none' alone blocks data: too, a real
+     defect in an earlier draft of this page). What this does NOT do: stop
+     a browser serving this page over http/https from separately issuing
+     its own same-origin GET /favicon.ico fallback request -- that request,
+     if your browser makes one, is not something this page's markup or
+     script ever asks for (see the no-external-reference test in
+     tests/test_seal_page_is_local.py), and an inline icon here does not
+     suppress it. Opening this file directly from disk (file://, see "Save
+     this file and open it from disk" below) has no origin to fall back
+     to, so no such request can happen there at all. -->
+<link rel="icon" href="data:,">
+<title>YAGAIDB — seal your key</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1216;
+    --panel: #171b21;
+    --text: #e8ebef;
+    --muted: #9aa4b2;
+    --accent: #6aa6ff;
+    --ok: #4caf7d;
+    --warn: #d98c3a;
+    --err: #e5636b;
+    --border: #2a2f37;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    max-width: 46rem;
+    margin: 2rem auto 5rem;
+    padding: 0 1.25rem;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 0.5rem; }
+  h3 { font-size: 1rem; margin: 0 0 0.3rem; }
+  .lede { color: var(--muted); margin-top: 0; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+  }
+  .beat {
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0 0.6rem 0.9rem;
+    margin: 0.9rem 0;
+  }
+  .beat p { margin: 0.3rem 0 0; }
+  .checklist li, ol.steps li { margin: 0.5rem 0; }
+  ol.steps li::marker { color: var(--accent); font-weight: 600; }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.92em;
+  }
+  label { display: block; font-weight: 600; margin: 1rem 0 0.3rem; }
+  .hint { color: var(--muted); font-weight: 400; font-size: 0.85em; }
+  input[type=password], input[type=text], textarea {
+    width: 100%;
+    background: #0b0d10;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.55rem 0.7rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.95em;
+  }
+  textarea { min-height: 5.5rem; resize: vertical; }
+  button {
+    background: var(--accent);
+    color: #0b0d10;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.1rem;
+    font-weight: 700;
+    font-size: 0.95em;
+    cursor: pointer;
+    margin-top: 0.8rem;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    margin-left: 0.5rem;
+  }
+  .status { margin-top: 0.8rem; font-weight: 600; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .status.warn { color: var(--warn); }
+  .banner {
+    border: 1px solid var(--warn);
+    background: rgba(217, 140, 58, 0.12);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin: 1rem 0;
+    font-weight: 600;
+  }
+  .verify li { margin: 0.4rem 0; }
+  footer { color: var(--muted); font-size: 0.85em; margin-top: 3rem; }
+  .out-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<h1>Seal your API key</h1>
+<p class="lede">
+  This page encrypts your API key, in your browser, before anything leaves it. What you send to
+  Discord afterward is ciphertext — Discord never sees your key, and neither does this website,
+  because this website never talks to a server at all.
+</p>
+
+<h2>What this page does, in plain English</h2>
+<div class="panel">
+  <p>
+    You paste your API key and your Discord user id below. This page generates a fresh, one-time
+    encryption keypair, combines it with the bot's public key to derive a secret only the bot can
+    reproduce, and uses that secret to encrypt your key with AES-256-GCM. The result — a short block
+    of unreadable text called a "blob" — is what you paste into Discord, not your key. Only the bot's
+    private key, which never leaves the bot, can undo the encryption.
+  </p>
+  <p>
+    This is <strong>not a form that submits anywhere</strong>. There is no server behind this page.
+    Everything above happens with your browser's built-in cryptography library (WebCrypto), running
+    entirely on your own machine.
+  </p>
+</div>
+
+<h2>Don't take that on faith — check it yourself</h2>
+<div class="panel">
+  <p class="hint" style="margin-top:0;">
+    A page that says "paste your API key here" looks exactly like a phishing page. You should not
+    trust the paragraph above just because it says so. Here is the one check that actually proves
+    it, and you do not need to be a programmer to run it:
+  </p>
+  <ul class="verify">
+    <li>
+      <strong>Turn off your network — WiFi off, ethernet unplugged, airplane mode on — then reload
+      this page and seal a key.</strong> It still works, end to end, blob and all. A page that talks
+      to a server cannot do that with no network. If you have your browser's developer tools handy,
+      open the <strong>Network</strong> tab before you reload: a full, successful seal makes no
+      request to any address other than this page itself while you type or click "Seal my key" — no
+      image request, no script, nothing sent out. (Your browser may still show one same-origin
+      <code>GET /favicon.ico</code> as part of the page load if you are viewing this over
+      <code>http(s)</code> rather than from a saved local file — that is your browser's own fallback
+      behavior, not something this page's markup or script asks for, and it is not what this check
+      is about.) That is the real proof, and it is one you ran yourself, not one this page asked you
+      to believe.
+    </li>
+    <li>
+      <strong>Save this file and open it from disk.</strong> Use your browser's Save Page As, then
+      open the saved <code>.html</code> file directly (the address bar will show a
+      <code>file://</code> path, not <code>http://</code> or <code>https://</code>). It still works,
+      because it isn't served by anything.
+    </li>
+    <li>
+      <strong>Read the source, if you can.</strong> Right-click this page and choose "View Page
+      Source" (or press <code>Ctrl+U</code> / <code>Cmd+Option+U</code>). Everything is in one
+      plain-text file, nothing is minified or obfuscated. This step takes programming knowledge to
+      get real value from, and it does not by itself prove anything — reading code and being sure it
+      does nothing unexpected are different skills. What actually backs this page: an automated test
+      suite in this project's repository (<code>tests/test_seal_page_is_local.py</code>) pins this
+      page's <code>&lt;script&gt;</code> and <code>&lt;style&gt;</code> blocks to their exact bytes
+      and checks the surrounding markup on every change, and a <code>Content-Security-Policy</code>
+      meta tag at the top of the source has your own browser enforce that same script pin at
+      runtime — a modified script will not execute at all — plus the other restrictions described
+      there. Neither one is a guarantee that holds up against someone editing this file <em>and</em>
+      its test suite together — the network-off check above is the one that does not depend on
+      trusting this file's author at all.
+    </li>
+  </ul>
+</div>
+
+<h2>What happens to your key — the same disclosure the bot shows you</h2>
+<p class="hint">
+  These four paragraphs are copied unchanged from <code>docs/ARCHITECTURE.md</code> §5, "The
+  disclosure — exact user-facing wording." Read them before you paste anything below.
+</p>
+<div class="panel">
+  <div class="beat">
+    <h3>What happens to your key.</h3>
+    <p>
+      It is encrypted before it is stored, under a key held by this server. A database dump, a
+      backup, or a stolen disk image does not contain a usable credential. It does not protect you
+      from whoever runs this machine — see below.
+    </p>
+  </div>
+  <div class="beat">
+    <h3>What we do not promise.</h3>
+    <p>
+      This bot runs on a machine we do not own. Anyone with root on that machine can read the memory
+      of a running process, and therefore can read your key while a request is in flight. No
+      software running on that host can prevent that or prove otherwise. If a hosted service tells
+      you it "cannot access your keys" without hardware attestation, it is wrong.
+    </p>
+  </div>
+  <div class="beat">
+    <h3>What to do about it.</h3>
+    <p>
+      Sign in with OpenRouter rather than pasting a key. That mints a key that belongs to you, is
+      scoped to this app, has a spending cap you choose, and that you can revoke from your
+      OpenRouter dashboard at any moment without asking us. If you must paste a key, paste one with
+      a spend limit on it, and revoke it when you stop using the bot.
+    </p>
+  </div>
+  <div class="beat">
+    <h3>What you are accepting.</h3>
+    <p>
+      No reliability, no liability, no responsibility. This is best-effort software running on
+      hardware we do not control: it can be down, wrong, or broken at any moment, and we owe you
+      nothing when it is. Your key pays for every request the bot makes on your behalf, including
+      the ones you did not intend — an agent that gets stuck in a tool-calling loop can spend real
+      money before anyone notices, <strong>and we do not cap it.</strong> There is no ceiling here
+      and no kill-switch. A spend limit set on your own key, at your own provider, is the only thing
+      that actually stops it. Set one before you continue.
+    </p>
+    <p>
+      And backread is on your bill too: every time you ping the bot it reads the last 100 messages
+      in that channel — everyone's, not just yours — and sends them to the model on your key. That
+      is roughly 2,000–5,000 input tokens per ping before you have typed a word, and it means you
+      are paying to put other people's messages into a model. Lower the number, or set it to zero,
+      on your settings page.
+    </p>
+  </div>
+</div>
+
+<h2>Steps, start to finish</h2>
+<ol class="steps">
+  <li>
+    Get an API key from your provider (OpenRouter is the default). Before you copy it,
+    <strong>set a spend limit on it</strong> at the provider — see "What to do about it" above.
+    There is no spend cap on the bot's side; the cap you set at the provider is the only one that
+    exists.
+  </li>
+  <li>
+    Find your Discord user id. If you've never done this before:
+    open Discord's <strong>User Settings</strong> (the gear icon) → <strong>Advanced</strong> →
+    turn on <strong>Developer Mode</strong>. Then close settings, right-click your own name or
+    avatar anywhere in Discord, and choose <strong>Copy User ID</strong>. It's a string of digits,
+    typically 17–19 of them. You cannot use this page without it — the id is baked into the
+    encryption so nobody else's copy of your sealed key will work for them.
+  </li>
+  <li>Paste your API key and your Discord user id into the two fields below.</li>
+  <li>
+    Click <strong>Seal my key</strong>. This runs entirely in your browser and takes well under a
+    second; nothing is sent anywhere.
+  </li>
+  <li>Copy the sealed blob that appears (use the Copy button, or select the text yourself).</li>
+  <li>
+    In Discord, open a <strong>direct message to the bot</strong> and send:
+    <code>/setkey &lt;paste the blob&gt;</code>
+  </li>
+  <li>
+    <strong>Delete the message you just sent, immediately.</strong> This is not optional and it is
+    not the bot's job — bots have no "Manage Messages" permission inside a DM, so the bot
+    <em>cannot</em> delete it for you even if it wanted to. Until you delete it, the sealed blob
+    sits in your own Discord message history indefinitely. Deleting your message is the only thing
+    that removes it.
+  </li>
+</ol>
+
+<h2>Seal a key</h2>
+<div class="panel">
+  <div id="config-banner" class="banner" style="display:none;" role="alert"></div>
+
+  <label for="api-key-input">
+    Your API key
+    <span class="hint">— never leaves this browser tab</span>
+  </label>
+  <input type="password" id="api-key-input" autocomplete="off" spellcheck="false">
+
+  <label for="user-id-input">
+    Your Discord user id
+    <span class="hint">— digits only, from step 2 above</span>
+  </label>
+  <input type="text" id="user-id-input" autocomplete="off" spellcheck="false" inputmode="numeric">
+
+  <div>
+    <button type="button" id="seal-btn" disabled>Seal my key</button>
+  </div>
+
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <div id="output-row" style="display:none;">
+    <label for="blob-output">Sealed blob — paste this after <code>/setkey</code></label>
+    <textarea id="blob-output" readonly spellcheck="false"></textarea>
+    <div class="out-row">
+      <button type="button" class="secondary" id="copy-btn">Copy blob</button>
+      <span id="copy-status" class="hint"></span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>
+    This page contains no <code>fetch</code>, no <code>XMLHttpRequest</code>, no
+    <code>WebSocket</code>, no form submission, and no reference — script, stylesheet, image, or
+    otherwise, absolute or relative — to any address outside this file. It also ships a
+    <code>Content-Security-Policy</code> (see the top of the source) that has your browser itself
+    refuse any request or resource load a script here might try to add, and refuse any form
+    submission. That policy also pins this page's own script to its exact bytes — a
+    <code>sha256-</code> hash source in <code>script-src</code> — so a modified script simply will
+    not run in your browser at all; that says nothing about someone serving you a different page
+    with a different policy. One honest exception remains: a meta CSP cannot stop a script from
+    navigating the tab (no browser ships a working <code>navigate-to</code> directive), so that
+    guarantee instead rests on this repository's test suite
+    (<code>tests/test_seal_page_is_local.py</code>), which pins the same script bytes and checks the
+    surrounding markup on every change, and is documented there, including what it does and does not
+    cover. The one check that does not ask you to trust either this page or that test suite is the
+    "turn off your network" step above — run it yourself before you paste a key.
+  </p>
+</footer>
+
+<script>
+"use strict";
+/*
+ * tools/seal-key.html — client-side half of P4B-3 (docs/impl/BYOK-LOOP.md).
+ *
+ * Wire format (fixed by the integrator; both halves of this wave implement it
+ * independently, so nothing here may deviate):
+ *
+ *   blob = base64url_nopad( VERSION || E || salt || nonce || ciphertext_with_tag )
+ *     VERSION  1 byte,  0x01
+ *     E        65 bytes, ephemeral P-256 public key, uncompressed point 0x04||X(32)||Y(32)
+ *     salt     16 bytes, random per submission
+ *     nonce    12 bytes, random per submission (AES-GCM standard length)
+ *     ciphertext_with_tag  AES-256-GCM output (WebCrypto appends the 16-byte tag)
+ *
+ *   shared = ECDH(P-256) X-coordinate only (32 bytes) — exactly what
+ *            crypto.subtle.deriveBits({name:"ECDH", public}, priv, 256) returns.
+ *   k      = HKDF-SHA256(ikm=shared, salt=salt, info=INFO, length=32)
+ *   INFO   = "yagaidb/setkey/v1" || E(65) || B(65) || discord_user_id (utf-8)
+ *
+ * B is the bot's long-term P-256 public key. The discord_user_id is bound ONLY
+ * here, in the KDF info — never also as AEAD associated data (R-BYOK-7; two
+ * redundant bindings mask each other's red path).
+ *
+ * THIS SCRIPT IS UNVERIFIED BY EXECUTION. It was written directly against the
+ * WebCrypto spec (SubtleCrypto.deriveBits/deriveKey/encrypt, EC "raw" export
+ * format) with no JS runtime available to run it in. Exercise it in an actual
+ * browser — against a real bot public key and a matching unseal — before this
+ * page goes live. See the BOT_PUBLIC_KEY_B64URL placeholder below.
+ */
+
+// ---------------------------------------------------------------------------
+// Integrator configuration. Replace this placeholder with the bot's real
+// long-term ECDH P-256 public key: the base64url (no padding) encoding of its
+// 65-byte uncompressed point (0x04 || X(32) || Y(32)) — the same encoding
+// this page produces for its own ephemeral key below. Until this is replaced,
+// the page detects the placeholder at load time and refuses to seal rather
+// than silently encrypting to a key nobody holds.
+const BOT_PUBLIC_KEY_B64URL = "BEIxTrU8nEn8mnJIVxChOMWbifL15PF9oyQ1C1GAEdQh57rN7qKmbZG3E2Bts3-Fae51BSEKstRp3pKwjQgn0RE";
+const KDF_INFO_PREFIX = "yagaidb/setkey/v1";
+const WIRE_VERSION = 0x01;
+
+// ---------------------------------------------------------------------------
+// base64url (no padding), and back, using the browser's own atob/btoa — no
+// external library.
+function bytesToB64Url(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64UrlToBytes(str) {
+  let s = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function concatBytes(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
+}
+
+const utf8 = (s) => new TextEncoder().encode(s);
+
+// ---------------------------------------------------------------------------
+// Configuration gate. Runs once at load; disables sealing rather than letting
+// someone encrypt to a placeholder key that opens for nobody. The Seal
+// button also ships `disabled` directly in the markup (see #seal-btn),
+// not only via this script -- so if a tampered page has this script
+// blocked by CSP (exactly the case the script-src hash pin exists to
+// catch), the button PRESENTS as a visibly disabled control instead of
+// looking live and silently swallowing an API key press. That means this
+// script must explicitly clear `disabled` once both checks below pass --
+// see the `sealBtn.disabled = false;` line after them -- or the button
+// would stay disabled forever even when everything is configured.
+let botPublicKeyBytes = null;
+let configError = "";
+try {
+  const candidate = b64UrlToBytes(BOT_PUBLIC_KEY_B64URL);
+  if (candidate.length !== 65 || candidate[0] !== 0x04) {
+    configError =
+      "This page has not been configured with the bot's public key yet " +
+      "(BOT_PUBLIC_KEY_B64URL is still a placeholder). Sealing is disabled. " +
+      "Contact the operator — this is not something you can fix by editing " +
+      "your key or Discord id.";
+  } else {
+    botPublicKeyBytes = candidate;
+  }
+} catch (e) {
+  configError =
+    "This page's embedded bot public key does not decode as base64url " +
+    "(" + (e && e.message ? e.message : e) + "). Sealing is disabled. " +
+    "Contact the operator.";
+}
+
+function setStatus(el, text, cls) {
+  el.textContent = text;
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+window.addEventListener("DOMContentLoaded", function () {
+  const banner = document.getElementById("config-banner");
+  const sealBtn = document.getElementById("seal-btn");
+  const status = document.getElementById("status");
+  const apiKeyInput = document.getElementById("api-key-input");
+  const userIdInput = document.getElementById("user-id-input");
+  const outputRow = document.getElementById("output-row");
+  const blobOutput = document.getElementById("blob-output");
+  const copyBtn = document.getElementById("copy-btn");
+  const copyStatus = document.getElementById("copy-status");
+
+  if (!window.crypto || !window.crypto.subtle) {
+    banner.style.display = "block";
+    banner.textContent =
+      "This browser does not expose the Web Crypto API (window.crypto.subtle), " +
+      "so this page cannot encrypt anything. This can happen on a very old " +
+      "browser, or if the page was opened in a context WebCrypto treats as " +
+      "insecure. Try a current version of Firefox, Chrome, or Safari.";
+    sealBtn.disabled = true;
+    return;
+  }
+
+  if (configError) {
+    banner.style.display = "block";
+    banner.textContent = configError;
+    sealBtn.disabled = true;
+    return;
+  }
+
+  // Both checks above passed: this is the one place that turns the
+  // markup's `disabled` attribute off. Nothing else in this script does
+  // -- if this line does not run (script blocked, or an exception thrown
+  // before reaching it), the button stays disabled, which is the
+  // intended fail-closed state, not a bug to work around.
+  sealBtn.disabled = false;
+
+  copyBtn.addEventListener("click", async function () {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(blobOutput.value);
+      } else {
+        blobOutput.select();
+        document.execCommand("copy");
+      }
+      copyStatus.textContent = "Copied.";
+    } catch (e) {
+      copyStatus.textContent = "Could not copy automatically — select the text and copy it yourself.";
+    }
+  });
+
+  sealBtn.addEventListener("click", async function () {
+    const apiKey = apiKeyInput.value;
+    const userId = userIdInput.value.trim();
+    outputRow.style.display = "none";
+    copyStatus.textContent = "";
+
+    if (!apiKey) {
+      setStatus(status, "Paste your API key first.", "err");
+      return;
+    }
+    if (!/^[0-9]{5,25}$/.test(userId)) {
+      setStatus(
+        status,
+        "Discord user id looks wrong — it should be digits only (see step 2 above).",
+        "err"
+      );
+      return;
+    }
+
+    sealBtn.disabled = true;
+    setStatus(status, "Sealing…", "warn");
+
+    try {
+      const blob = await sealKey(apiKey, userId);
+      blobOutput.value = blob;
+      outputRow.style.display = "block";
+      setStatus(status, "Sealed. Copy the blob below and continue with step 6.", "ok");
+      // Clear the plaintext key from the DOM now that it has been consumed.
+      apiKeyInput.value = "";
+    } catch (e) {
+      setStatus(
+        status,
+        "Sealing failed: " + (e && e.message ? e.message : String(e)),
+        "err"
+      );
+    } finally {
+      sealBtn.disabled = false;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The sealing operation itself. See the wire-format docblock at the top of
+// this script for the exact byte layout and KDF this implements.
+async function sealKey(apiKey, discordUserId) {
+  // 1. Ephemeral P-256 keypair, discarded after this call.
+  const ephemeral = await crypto.subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    ["deriveBits"]
+  );
+  const eRaw = new Uint8Array(await crypto.subtle.exportKey("raw", ephemeral.publicKey));
+  if (eRaw.length !== 65 || eRaw[0] !== 0x04) {
+    throw new Error("unexpected ephemeral public key encoding from this browser");
+  }
+
+  // 2. Import the bot's long-term public key B and run ECDH -> 32-byte shared X.
+  const botKey = await crypto.subtle.importKey(
+    "raw",
+    botPublicKeyBytes,
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    []
+  );
+  const sharedBits = await crypto.subtle.deriveBits(
+    { name: "ECDH", public: botKey },
+    ephemeral.privateKey,
+    256
+  );
+
+  // 3. salt (16) and nonce (12), random per submission.
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+
+  // 4. info = "yagaidb/setkey/v1" || E(65) || B(65) || discord_user_id(utf-8).
+  //    The user id is bound HERE ONLY (R-BYOK-7) — it is never also passed as
+  //    AEAD additionalData below.
+  const info = concatBytes([
+    utf8(KDF_INFO_PREFIX),
+    eRaw,
+    botPublicKeyBytes,
+    utf8(discordUserId),
+  ]);
+
+  // 5. HKDF-SHA256(shared, salt, info) -> a 256-bit AES-GCM key, derived
+  //    directly as an AES-GCM CryptoKey (no raw key bytes ever touch JS).
+  const hkdfMaterial = await crypto.subtle.importKey(
+    "raw",
+    sharedBits,
+    "HKDF",
+    false,
+    ["deriveKey"]
+  );
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
+    hkdfMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"]
+  );
+
+  // 6. AES-256-GCM encrypt. WebCrypto appends the 16-byte tag to the output —
+  //    no separate concatenation needed for ciphertext_with_tag.
+  const ciphertextWithTag = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: nonce },
+      aesKey,
+      utf8(apiKey)
+    )
+  );
+
+  // 7. blob = VERSION || E || salt || nonce || ciphertext_with_tag
+  const blobBytes = concatBytes([
+    new Uint8Array([WIRE_VERSION]),
+    eRaw,
+    salt,
+    nonce,
+    ciphertextWithTag,
+  ]);
+
+  return bytesToB64Url(blobBytes);
+}
+</script>
+
+</body>
+</html>
