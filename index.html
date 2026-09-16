@@ -212,43 +212,48 @@
 <div class="panel">
   <div class="beat">
     <h3>What happens to your key.</h3>
+    <!-- disclosure-core-1:start -->
     <p>
-      Your stored credential is encrypted under this server's key-encryption key (KEK).
-      A vault database copied without the KEK does not reveal the credential. On this
-      deployment the KEK is in <code>.env</code> on the same disk: a disk image or backup
-      containing both can be used to decrypt it. Encryption does not protect your key
-      from the operator or anyone who controls this machine.
+      Your stored credential is encrypted under the server's key-encryption key
+      (KEK). On this deployment the KEK is in .env on the same disk: a copy
+      containing both the vault and KEK can decrypt your credential.
     </p>
+    <!-- disclosure-core-1:end -->
   </div>
   <div class="beat">
     <h3>What we do not promise.</h3>
+    <!-- disclosure-core-2:start -->
     <p>
-      The operator controls this machine and can decrypt stored credentials. Someone with
-      root access can also read a key from process memory while it is in use. Sealing in
-      your browser keeps the actual API key out of Discord; it does not hide it from the bot
-      or the operator who runs it.
+      The operator can decrypt stored credentials and read keys while they are in
+      use. Browser sealing keeps the API key out of Discord; it does not hide it
+      from the bot or its operator.
     </p>
+    <!-- disclosure-core-2:end -->
   </div>
   <div class="beat">
     <h3>What to do about it.</h3>
+    <!-- disclosure-core-3:start -->
     <p>
-      Obtain a separate API key from the provider named in your setup instructions. This
-      bot has no provider sign-in flow that creates a key for you. Set a spending limit at
-      your provider where supported, and revoke the key there when you stop using it or
-      suspect exposure. <code>/revokekey</code> removes the bot's stored copy; it does not
-      revoke the key at the provider or invalidate saved sealed blobs.
+      Use a separate provider key and set a provider-side spending limit where
+      supported. Revoke it at the provider when you stop using it or suspect
+      exposure. This bot does not enforce a monetary budget.
+    </p>
+    <!-- disclosure-core-3:end -->
+    <p>
+      This bot has no provider sign-in flow that creates a key for you.
+      <code>/revokekey</code> removes the bot's stored copy; it does not revoke
+      the key at the provider or invalidate saved sealed blobs.
     </p>
   </div>
   <div class="beat">
     <h3>What you are accepting.</h3>
+    <!-- disclosure-core-4:start -->
     <p>
-      No reliability, no liability, no responsibility. This is best-effort software running on
-      the operator's hardware: it can be down, wrong, or broken at any moment, and we owe you
-      nothing when it is. Your key pays for every request the bot makes on your behalf, including
-      the ones you did not intend; an agent that gets stuck in a tool-calling loop can spend real
-      money before anyone notices, <strong>and we do not cap it.</strong> Tool and turn limits are not a spending ceiling. Use a provider-side spending limit
-      where available; do not rely on this bot to enforce a monetary budget.
+      No reliability, no liability, no responsibility. This is best-effort
+      software: it can be down, wrong or broken. Your key pays for requests made
+      on your behalf, including ones you did not intend.
     </p>
+    <!-- disclosure-core-4:end -->
     <p>
       Channel backread is on your bill too. A reply can include recent channel messages
       from other members, not just your own. The amount depends on server configuration,
