@@ -206,53 +206,54 @@
 
 <h2>What happens to your key: the key-handling disclosure</h2>
 <p class="hint">
-  These four paragraphs are adapted from <code>docs/ARCHITECTURE.md</code> §5, "The
-  disclosure: exact user-facing wording." Read them before you paste anything below.
+  Current key-handling disclosure, updated 2026-09-16. Read it before entering a key.
+  Earlier disclosure records in the repository describe historical plans.
 </p>
 <div class="panel">
   <div class="beat">
     <h3>What happens to your key.</h3>
     <p>
-      It is encrypted before it is stored, under a key held by this server. A database dump, a
-      backup, or a stolen disk image does not contain a usable credential. It does not protect you
-      from whoever runs this machine; see below.
+      Your stored credential is encrypted under this server's key-encryption key (KEK).
+      A vault database copied without the KEK does not reveal the credential. On this
+      deployment the KEK is in <code>.env</code> on the same disk: a disk image or backup
+      containing both can be used to decrypt it. Encryption does not protect your key
+      from the operator or anyone who controls this machine.
     </p>
   </div>
   <div class="beat">
     <h3>What we do not promise.</h3>
     <p>
-      This bot runs on a machine we do not own. Anyone with root on that machine can read the memory
-      of a running process, and therefore can read your key while a request is in flight. No
-      software running on that host can prevent that or prove otherwise. If a hosted service tells
-      you it "cannot access your keys" without hardware attestation, it is wrong.
+      The operator controls this machine and can decrypt stored credentials. Someone with
+      root access can also read a key from process memory while it is in use. Sealing in
+      your browser keeps the actual API key out of Discord; it does not hide it from the bot
+      or the operator who runs it.
     </p>
   </div>
   <div class="beat">
     <h3>What to do about it.</h3>
     <p>
-      Sign in with OpenRouter rather than pasting a key. That mints a key that belongs to you, is
-      scoped to this app, has a spending cap you choose, and that you can revoke from your
-      OpenRouter dashboard at any moment without asking us. If you must paste a key, paste one with
-      a spend limit on it, and revoke it when you stop using the bot.
+      Obtain a separate API key from the provider named in your setup instructions. This
+      bot has no provider sign-in flow that creates a key for you. Set a spending limit at
+      your provider where supported, and revoke the key there when you stop using it or
+      suspect exposure. <code>/revokekey</code> removes the bot's stored copy; it does not
+      revoke the key at the provider or invalidate saved sealed blobs.
     </p>
   </div>
   <div class="beat">
     <h3>What you are accepting.</h3>
     <p>
       No reliability, no liability, no responsibility. This is best-effort software running on
-      hardware we do not control: it can be down, wrong, or broken at any moment, and we owe you
+      the operator's hardware: it can be down, wrong, or broken at any moment, and we owe you
       nothing when it is. Your key pays for every request the bot makes on your behalf, including
       the ones you did not intend; an agent that gets stuck in a tool-calling loop can spend real
-      money before anyone notices, <strong>and we do not cap it.</strong> There is no ceiling here
-      and no kill-switch. A spend limit set on your own key, at your own provider, is the only thing
-      that actually stops it. Set one before you continue.
+      money before anyone notices, <strong>and we do not cap it.</strong> Tool and turn limits are not a spending ceiling. Use a provider-side spending limit
+      where available; do not rely on this bot to enforce a monetary budget.
     </p>
     <p>
-      And backread is on your bill too: every time you ping the bot it reads the last 100 messages
-      in that channel (everyone's, not just yours) and sends them to the model on your key. That
-      is roughly 2,000–5,000 input tokens per ping before you have typed a word, and it means you
-      are paying to put other people's messages into a model. Lower the number, or set it to zero,
-      on your settings page.
+      Channel backread is on your bill too. A reply can include recent channel messages
+      from other members, not just your own. The amount depends on server configuration,
+      available history and message lengths; there is no fixed token cost per ping.
+      Ask the operator about backread settings.
     </p>
   </div>
 </div>
