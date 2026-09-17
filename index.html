@@ -11,7 +11,7 @@
      narrow enough to permit the inline data: favicon below (see that
      comment) without opening any path to a network image load; every
      other resource class stays governed by default-src 'none'. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'sha256-La9L7UkogRJ8Ky2Mq1u9KkMHTfIBbzdbIzbGvXzqFkI='; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'sha256-8HnYVZpDFUxgzWbvzb6vrqBxsZfOUSGu5W+Vat4plik='; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Favicon: this data: URL gives the browser a real (empty) icon to use so
@@ -206,7 +206,7 @@
 
 <h2>What happens to your key: the key-handling disclosure</h2>
 <p class="hint">
-  Current key-handling disclosure, updated 2026-09-16. Read it before entering a key.
+  Current key-handling disclosure, updated 2026-09-17. Read it before entering a key.
   Earlier disclosure records in the repository describe historical plans.
 </p>
 <div class="panel">
@@ -242,7 +242,7 @@
     <p>
       This bot has no provider sign-in flow that creates a key for you.
       <code>/revokekey</code> removes the bot's stored copy; it does not revoke
-      the key at the provider or invalidate saved sealed blobs.
+      the key at the provider.
     </p>
   </div>
   <div class="beat">
@@ -290,11 +290,9 @@
     <code>/setkey &lt;paste the blob&gt;</code>
   </li>
   <li>
-    You can remove saved copies of the sealed blob as a precaution. A saved copy can be
-    resubmitted from your Discord account later, restoring this key even after you remove it
-    with <code>/revokekey</code>. Deleting a copy does not invalidate other copies or revoke your
-    API key. Use <code>/revokekey</code> to remove the keys stored by this bot. To disable the
-    API key itself, revoke it with your provider.
+    <!-- disclosure-blob-use:start -->
+    A sealed blob works once. After using it, you can delete saved copies to tidy up.
+    <!-- disclosure-blob-use:end -->
   </li>
 </ol>
 
@@ -501,6 +499,15 @@ window.addEventListener("DOMContentLoaded", function () {
   // intended fail-closed state, not a bug to work around.
   sealBtn.disabled = false;
 
+  // A password input can discard newlines before the click handler sees them.
+  apiKeyInput.addEventListener("paste", function (event) {
+    if (event.clipboardData && /\s/.test(event.clipboardData.getData("text"))) {
+      event.preventDefault();
+      outputRow.style.display = "none";
+      setStatus(status, "The API key contains whitespace. Copy only the key, without spaces or line breaks.", "err");
+    }
+  });
+
   copyBtn.addEventListener("click", async function () {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -521,8 +528,12 @@ window.addEventListener("DOMContentLoaded", function () {
     outputRow.style.display = "none";
     copyStatus.textContent = "";
 
-    if (!apiKey) {
+    if (!apiKey.trim()) {
       setStatus(status, "Paste your API key first.", "err");
+      return;
+    }
+    if (/\s/.test(apiKey)) {
+      setStatus(status, "The API key contains whitespace. Copy only the key, without spaces or line breaks.", "err");
       return;
     }
     if (!/^[0-9]{5,25}$/.test(userId)) {
