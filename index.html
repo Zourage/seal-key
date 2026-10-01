@@ -11,7 +11,7 @@
      narrow enough to permit the inline data: favicon below (see that
      comment) without opening any path to a network image load; every
      other resource class stays governed by default-src 'none'. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'sha256-8HnYVZpDFUxgzWbvzb6vrqBxsZfOUSGu5W+Vat4plik='; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'sha256-KzYRp8w+fn82kuBWHdgctnHOorTyXNWUSRsfIfY85+E='; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Favicon: this data: URL gives the browser a real (empty) icon to use so
@@ -386,7 +386,7 @@
 // this page produces for its own ephemeral key below. Until this is replaced,
 // the page detects the placeholder at load time and refuses to seal rather
 // than silently encrypting to a key nobody holds.
-const BOT_PUBLIC_KEY_B64URL = "BEIxTrU8nEn8mnJIVxChOMWbifL15PF9oyQ1C1GAEdQh57rN7qKmbZG3E2Bts3-Fae51BSEKstRp3pKwjQgn0RE";
+const BOT_PUBLIC_KEY_B64URL = "BCHFuN9OmuFs548Hg4zcyijrZg8HgsItn_4IUk_o7nq46a8oa6dV64lP8zjzaD6Q1WTufpV9SRHg_rjxng6Iwdo";
 const KDF_INFO_PREFIX = "yagaidb/setkey/v1";
 const WIRE_VERSION = 0x01;
 
